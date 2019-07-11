@@ -22,7 +22,7 @@ namespace Library.API.Services
             // the repository fills the id (instead of using identity columns)
             if (author.Books.Any())
             {
-                foreach (var book in author.Books)
+                foreach (Book book in author.Books)
                 {
                     book.Id = Guid.NewGuid();
                 }
@@ -31,7 +31,7 @@ namespace Library.API.Services
 
         public void AddBookForAuthor(Guid authorId, Book book)
         {
-            var author = GetAuthor(authorId);
+            Author author = GetAuthor(authorId);
             if (author != null)
             {
                 // if there isn't an id filled out (ie: we're not upserting),
@@ -84,8 +84,7 @@ namespace Library.API.Services
 
         public Book GetBookForAuthor(Guid authorId, Guid bookId)
         {
-            return _context.Books
-              .Where(b => b.AuthorId == authorId && b.Id == bookId).FirstOrDefault();
+            return _context.Books.FirstOrDefault(b => b.AuthorId == authorId && b.Id == bookId);
         }
 
         public IEnumerable<Book> GetBooksForAuthor(Guid authorId)

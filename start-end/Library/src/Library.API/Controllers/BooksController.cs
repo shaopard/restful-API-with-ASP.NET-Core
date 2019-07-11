@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using AutoMapper;
 
 using Library.API.Entities;
+using Library.API.Enums;
 using Library.API.Models;
 using Library.API.Services;
 
@@ -42,7 +43,7 @@ namespace Library.API.Controllers
             return Ok(bookDtos);
         }
 
-        [HttpGet("{bookId}")]
+        [HttpGet("{bookId}", Name = "GetBookForAuthor")]
         public IActionResult GetBooks(Guid authorId, Guid bookId)
         {
             if (!_libraryRepository.AuthorExists(authorId))
@@ -60,6 +61,58 @@ namespace Library.API.Controllers
             var bookDto = Mapper.Map<BookDto>(book);
 
             return Ok(bookDto);
+        }
+
+        [HttpPost]
+        public IActionResult CreateBookForAuthor(Guid authorId, [FromBody] BookForCreationDto bookDto)
+        {
+            if (bookDto == null)
+            {
+                return BadRequest();
+            }
+
+            if (!_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            var bookEntity = Mapper.Map<Book>(bookDto);
+
+            _libraryRepository.AddBookForAuthor(authorId, bookEntity);
+
+            if (!_libraryRepository.Save())
+            {
+                throw new Exception($"Creating a book for author {authorId} failed on save.");
+            }
+
+            var bookToReturn = Mapper.Map<BookDto>(bookEntity);
+
+            return CreatedAtRoute(RouteNames.GetBookForAuthor, new { authorId = authorId, id = bookToReturn.Id }, bookToReturn);
+        }
+
+        [HttpDelete("{bookId}")]
+        public IActionResult DeleteBook(Guid authorId, Guid bookId)
+        {
+            if (!_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
+
+            if (bookEntity == null)
+            {
+                return NotFound();
+            }
+
+            _libraryRepository.DeleteBook(bookEntity);
+
+            if (!_libraryRepository.Save())
+            {
+                throw new Exception($"Deleting book {bookId} for author {authorId} failed.");
+            }
+
+            return NoContent();
         }
     }
 }

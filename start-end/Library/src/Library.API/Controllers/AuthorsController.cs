@@ -6,14 +6,15 @@
 
 using System;
 using System.Collections.Generic;
-using System.Net;
 
 using AutoMapper;
 
 using Library.API.Entities;
+using Library.API.Enums;
 using Library.API.Models;
 using Library.API.Services;
 
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Library.API.Controllers
@@ -38,7 +39,7 @@ namespace Library.API.Controllers
             return Ok(authorDtos);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id}", Name = "GetAuthor")]
         public IActionResult GetAuthors(Guid id)
         {
             Author authorEntity = _libraryRepository.GetAuthor(id);
@@ -52,5 +53,60 @@ namespace Library.API.Controllers
 
             return new JsonResult(author);
         }
+
+        [HttpPost]
+        public IActionResult CreateAuthor([FromBody] AuthorForCreationDto author)
+        {
+            if (author == null)
+            {
+                return BadRequest();
+            }
+
+            var authorEntity = Mapper.Map<Author>(author);
+
+            _libraryRepository.AddAuthor(authorEntity);
+
+            if (!_libraryRepository.Save())
+            {
+                throw new Exception("Creating an author failed on save.");
+            }
+
+            var authorToReturn = Mapper.Map<AuthorDto>(authorEntity);
+
+            return CreatedAtRoute(RouteNames.GetAuthorRoute, new { id = authorToReturn.Id}, authorToReturn); //the Response also holds the URI for the newly created resource, so its ID as well.
+        }
+
+        [HttpPost("{id}")]
+        public IActionResult BlockAuthorCreation(Guid id)
+        {
+            if (_libraryRepository.AuthorExists(id))
+            {
+                return new StatusCodeResult(StatusCodes.Status409Conflict);
+            }
+
+            return NotFound();
+        }
+
+        [HttpDelete("{id}")]
+        public IActionResult DeleteAuthor(Guid id)
+        {
+            Author authorEntity = _libraryRepository.GetAuthor(id);
+
+            if (authorEntity == null)
+            {
+                return NotFound();
+            }
+
+            _libraryRepository.DeleteAuthor(authorEntity);
+
+            if (_libraryRepository.Save())
+            {
+                throw new Exception($"Deleting author {id} failed.");
+            }
+
+            return NoContent();
+        }
+
+
     }
 }

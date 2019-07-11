@@ -48,7 +48,7 @@ namespace Library.API
                         appBuiler.Run(
                             async context =>
                             {
-                                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                                context.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
                                 await context.Response.WriteAsync("An unexpected fault happened. Try again later.");
                             });
                     });
@@ -61,6 +61,10 @@ namespace Library.API
                        .ForMember(dest => dest.Age, opt => opt.MapFrom(src => src.DateOfBirth.GetCurrentAge()));
 
                     cfg.CreateMap<Book, BookDto>();
+
+                    cfg.CreateMap<AuthorForCreationDto, Author>();
+
+                    cfg.CreateMap<BookForCreationDto, Book>();
                 });
 
             libraryContext.EnsureSeedDataForContext();
@@ -77,6 +81,7 @@ namespace Library.API
                 {
                     setupAction.ReturnHttpNotAcceptable = true;
                     setupAction.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
+                    setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
                 });
 
             // register the DbContext on the container, getting the connection string from

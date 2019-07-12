@@ -43,9 +43,9 @@ namespace Library.API
             else
             {
                 app.UseExceptionHandler(
-                    appBuiler =>
+                    appBuilder =>
                     {
-                        appBuiler.Run(
+                        appBuilder.Run(
                             async context =>
                             {
                                 context.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
@@ -65,6 +65,9 @@ namespace Library.API
                     cfg.CreateMap<AuthorForCreationDto, Author>();
 
                     cfg.CreateMap<BookForCreationDto, Book>();
+
+                    cfg.CreateMap<BookForUpdateDto, Book>();
+                    cfg.CreateMap<Book, BookForUpdateDto>();
                 });
 
             libraryContext.EnsureSeedDataForContext();

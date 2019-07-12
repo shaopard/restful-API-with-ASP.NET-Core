@@ -14,6 +14,7 @@ using Library.API.Enums;
 using Library.API.Models;
 using Library.API.Services;
 
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Library.API.Controllers
@@ -113,6 +114,101 @@ namespace Library.API.Controllers
             }
 
             return NoContent();
+        }
+
+        [HttpPut("{bookId}")]
+        public IActionResult UpdateBookForAuthor(Guid authorId, Guid bookId, [FromBody] BookForUpdateDto bookDto)
+        {
+            if (bookDto == null)
+            {
+                return BadRequest();
+            }
+
+            if (!_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
+
+            if (bookEntity == null)
+            {
+                var bookToAdd = Mapper.Map<Book>(bookDto);
+                bookToAdd.Id = bookId;
+
+                _libraryRepository.AddBookForAuthor(authorId, bookToAdd);
+
+                if (!_libraryRepository.Save())
+                {
+                    throw new Exception($"Upserting book {bookId} for author {authorId} failed when saving.");
+                }
+
+                var bookToReturn = Mapper.Map<BookDto>(bookToAdd);
+
+                return CreatedAtRoute("GetBookForAuthor", new { authorId = authorId, bookId = bookToReturn.Id } ,bookToReturn);
+            }
+
+            Mapper.Map(bookDto, bookEntity);
+
+            _libraryRepository.UpdateBookForAuthor(bookEntity);
+
+            if (!_libraryRepository.Save())
+            {
+                throw new Exception($"Failed updating book {bookId} for author {authorId} failed when saving.");
+            }
+
+            return Ok(bookEntity);
+        }
+
+        [HttpPatch("{bookId}")]
+        public IActionResult PartiallyUpdateBookForAuthor(Guid authorId, Guid bookId, [FromBody] JsonPatchDocument<BookForUpdateDto> patchDoc)
+        {
+            if (patchDoc == null)
+            {
+                return BadRequest();
+            }
+
+            if (!_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
+
+            if (bookEntity == null)
+            {
+                var bookDto = new BookForUpdateDto();
+                patchDoc.ApplyTo(bookDto);
+
+                var bookToAdd = Mapper.Map<Book>(bookDto);
+                bookToAdd.Id = bookId;
+
+                _libraryRepository.AddBookForAuthor(authorId, bookToAdd);
+
+                if (!_libraryRepository.Save())
+                {
+                    throw new Exception($"Upserting book {bookId} for author {authorId} failed when saving.");
+                }
+
+                var bookToReturn = Mapper.Map<BookDto>(bookToAdd);
+
+                return CreatedAtRoute("GetBookForAuthor", new { authorId = authorId, bookId = bookToReturn.Id }, bookToReturn);
+            }
+
+            var bookToPatch = Mapper.Map<BookForUpdateDto>(bookEntity);
+
+            patchDoc.ApplyTo(bookToPatch);
+
+            Mapper.Map(bookToPatch, bookEntity);
+
+            _libraryRepository.UpdateBookForAuthor(bookEntity);
+
+            if (!_libraryRepository.Save())
+            {
+                throw new Exception($"Failed updating book {bookId} for author {authorId} failed when saving.");
+            }
+
+            return Ok(bookEntity);
         }
     }
 }

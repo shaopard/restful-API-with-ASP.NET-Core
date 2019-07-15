@@ -12,6 +12,7 @@ using Library.API.Models;
 using Library.API.Services;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Formatters;
@@ -19,6 +20,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+using NLog.Extensions.Logging;
 
 namespace Library.API
 {
@@ -36,6 +39,12 @@ namespace Library.API
         {
             loggerFactory.AddConsole();
 
+            loggerFactory.AddDebug(LogLevel.Information);
+
+            //loggerFactory.AddProvider(new NLogLoggerProvider());
+
+            loggerFactory.AddNLog();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -48,6 +57,14 @@ namespace Library.API
                         appBuilder.Run(
                             async context =>
                             {
+                                var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
+
+                                if (exceptionHandlerFeature != null)
+                                {
+                                    ILogger logger = loggerFactory.CreateLogger("Global exception logger");
+                                    logger.LogError((int) HttpStatusCode.InternalServerError, exceptionHandlerFeature.Error, exceptionHandlerFeature.Error.Message);
+                                }
+
                                 context.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
                                 await context.Response.WriteAsync("An unexpected fault happened. Try again later.");
                             });

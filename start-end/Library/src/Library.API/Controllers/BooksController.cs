@@ -6,38 +6,115 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net;
 
 using AutoMapper;
 
 using Library.API.Entities;
 using Library.API.Enums;
+using Library.API.Helpers;
 using Library.API.Models;
 using Library.API.Services;
 
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Library.API.Controllers
 {
     [Route("api/authors/{authorId}/books")]
     public class BooksController : Controller
     {
-        private ILibraryRepository _libraryRepository;
+        private readonly ILibraryRepository c_libraryRepository;
 
-        public BooksController(ILibraryRepository libraryRepository)
+        private readonly ILogger<BooksController> c_logger;
+
+        public BooksController(ILibraryRepository libraryRepository, ILogger<BooksController> logger)
         {
-            _libraryRepository = libraryRepository;
+            c_logger = logger;
+            c_libraryRepository = libraryRepository;
+        }
+
+        [HttpPost]
+        public IActionResult CreateBookForAuthor(Guid authorId, [FromBody] BookForCreationDto bookDto)
+        {
+            if (bookDto == null)
+            {
+                return BadRequest();
+            }
+
+            if (bookDto.Description == bookDto.Title)
+            {
+                ModelState.AddModelError(nameof(BookForCreationDto), "The provided description should be different from the title.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                // return 422;
+                return new UnprocessableEntityObjectResult(ModelState);
+            }
+
+            if (!c_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            var bookEntity = Mapper.Map<Book>(bookDto);
+
+            c_libraryRepository.AddBookForAuthor(authorId, bookEntity);
+
+            if (!c_libraryRepository.Save())
+            {
+                throw new Exception($"Creating a book for author {authorId} failed on save.");
+            }
+
+            var bookToReturn = Mapper.Map<BookDto>(bookEntity);
+
+            return CreatedAtRoute(
+                RouteNames.GetBookForAuthor,
+                new
+                {
+                    authorId = authorId,
+                    id = bookToReturn.Id
+                },
+                bookToReturn);
+        }
+
+        [HttpDelete("{bookId}")]
+        public IActionResult DeleteBook(Guid authorId, Guid bookId)
+        {
+            if (!c_libraryRepository.AuthorExists(authorId))
+            {
+                return NotFound();
+            }
+
+            Book bookEntity = c_libraryRepository.GetBookForAuthor(authorId, bookId);
+
+            if (bookEntity == null)
+            {
+                return NotFound();
+            }
+
+            c_libraryRepository.DeleteBook(bookEntity);
+
+            if (!c_libraryRepository.Save())
+            {
+                throw new Exception($"Deleting book {bookId} for author {authorId} failed.");
+            }
+            c_logger.LogInformation((int) HttpStatusCode.Continue, $"Book {bookId} for author {authorId} was deleted.");
+
+            return NoContent();
         }
 
         [HttpGet]
         public IActionResult GetBooks(Guid authorId)
         {
-            if (!_libraryRepository.AuthorExists(authorId))
+            if (!c_libraryRepository.AuthorExists(authorId))
             {
                 return NotFound();
             }
 
-            IEnumerable<Book> bookEntities = _libraryRepository.GetBooksForAuthor(authorId);
+            IEnumerable<Book> bookEntities = c_libraryRepository.GetBooksForAuthor(authorId);
 
             var bookDtos = Mapper.Map<IEnumerable<BookDto>>(bookEntities);
 
@@ -47,12 +124,12 @@ namespace Library.API.Controllers
         [HttpGet("{bookId}", Name = "GetBookForAuthor")]
         public IActionResult GetBooks(Guid authorId, Guid bookId)
         {
-            if (!_libraryRepository.AuthorExists(authorId))
+            if (!c_libraryRepository.AuthorExists(authorId))
             {
                 return NotFound();
             }
 
-            Book book = _libraryRepository.GetBookForAuthor(authorId, bookId);
+            Book book = c_libraryRepository.GetBookForAuthor(authorId, bookId);
 
             if (book == null)
             {
@@ -64,56 +141,62 @@ namespace Library.API.Controllers
             return Ok(bookDto);
         }
 
-        [HttpPost]
-        public IActionResult CreateBookForAuthor(Guid authorId, [FromBody] BookForCreationDto bookDto)
+        [HttpPatch("{bookId}")]
+        public IActionResult PartiallyUpdateBookForAuthor(Guid authorId, Guid bookId, [FromBody] JsonPatchDocument<BookForUpdateDto> patchDoc)
         {
-            if (bookDto == null)
+            if (patchDoc == null)
             {
                 return BadRequest();
             }
 
-            if (!_libraryRepository.AuthorExists(authorId))
+            if (!c_libraryRepository.AuthorExists(authorId))
             {
                 return NotFound();
             }
 
-            var bookEntity = Mapper.Map<Book>(bookDto);
-
-            _libraryRepository.AddBookForAuthor(authorId, bookEntity);
-
-            if (!_libraryRepository.Save())
-            {
-                throw new Exception($"Creating a book for author {authorId} failed on save.");
-            }
-
-            var bookToReturn = Mapper.Map<BookDto>(bookEntity);
-
-            return CreatedAtRoute(RouteNames.GetBookForAuthor, new { authorId = authorId, id = bookToReturn.Id }, bookToReturn);
-        }
-
-        [HttpDelete("{bookId}")]
-        public IActionResult DeleteBook(Guid authorId, Guid bookId)
-        {
-            if (!_libraryRepository.AuthorExists(authorId))
-            {
-                return NotFound();
-            }
-
-            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
+            Book bookEntity = c_libraryRepository.GetBookForAuthor(authorId, bookId);
 
             if (bookEntity == null)
             {
-                return NotFound();
+                var bookDto = new BookForUpdateDto();
+                patchDoc.ApplyTo(bookDto);
+
+                var bookToAdd = Mapper.Map<Book>(bookDto);
+                bookToAdd.Id = bookId;
+
+                c_libraryRepository.AddBookForAuthor(authorId, bookToAdd);
+
+                if (!c_libraryRepository.Save())
+                {
+                    throw new Exception($"Upserting book {bookId} for author {authorId} failed when saving.");
+                }
+
+                var bookToReturn = Mapper.Map<BookDto>(bookToAdd);
+
+                return CreatedAtRoute(
+                    "GetBookForAuthor",
+                    new
+                    {
+                        authorId = authorId,
+                        bookId = bookToReturn.Id
+                    },
+                    bookToReturn);
             }
 
-            _libraryRepository.DeleteBook(bookEntity);
+            var bookToPatch = Mapper.Map<BookForUpdateDto>(bookEntity);
 
-            if (!_libraryRepository.Save())
+            patchDoc.ApplyTo(bookToPatch);
+
+            Mapper.Map(bookToPatch, bookEntity);
+
+            c_libraryRepository.UpdateBookForAuthor(bookEntity);
+
+            if (!c_libraryRepository.Save())
             {
-                throw new Exception($"Deleting book {bookId} for author {authorId} failed.");
+                throw new Exception($"Failed updating book {bookId} for author {authorId} failed when saving.");
             }
 
-            return NoContent();
+            return Ok(bookEntity);
         }
 
         [HttpPut("{bookId}")]
@@ -124,86 +207,53 @@ namespace Library.API.Controllers
                 return BadRequest();
             }
 
-            if (!_libraryRepository.AuthorExists(authorId))
+            if (bookDto.Description == bookDto.Title)
+            {
+                ModelState.AddModelError(nameof(BookForUpdateDto), "The provided description should be different from the title.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                // return 422;
+                return new UnprocessableEntityObjectResult(ModelState);
+            }
+
+            if (!c_libraryRepository.AuthorExists(authorId))
             {
                 return NotFound();
             }
 
-            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
+            Book bookEntity = c_libraryRepository.GetBookForAuthor(authorId, bookId);
 
             if (bookEntity == null)
             {
                 var bookToAdd = Mapper.Map<Book>(bookDto);
                 bookToAdd.Id = bookId;
 
-                _libraryRepository.AddBookForAuthor(authorId, bookToAdd);
+                c_libraryRepository.AddBookForAuthor(authorId, bookToAdd);
 
-                if (!_libraryRepository.Save())
+                if (!c_libraryRepository.Save())
                 {
                     throw new Exception($"Upserting book {bookId} for author {authorId} failed when saving.");
                 }
 
                 var bookToReturn = Mapper.Map<BookDto>(bookToAdd);
 
-                return CreatedAtRoute("GetBookForAuthor", new { authorId = authorId, bookId = bookToReturn.Id } ,bookToReturn);
+                return CreatedAtRoute(
+                    "GetBookForAuthor",
+                    new
+                    {
+                        authorId = authorId,
+                        bookId = bookToReturn.Id
+                    },
+                    bookToReturn);
             }
 
             Mapper.Map(bookDto, bookEntity);
 
-            _libraryRepository.UpdateBookForAuthor(bookEntity);
+            c_libraryRepository.UpdateBookForAuthor(bookEntity);
 
-            if (!_libraryRepository.Save())
-            {
-                throw new Exception($"Failed updating book {bookId} for author {authorId} failed when saving.");
-            }
-
-            return Ok(bookEntity);
-        }
-
-        [HttpPatch("{bookId}")]
-        public IActionResult PartiallyUpdateBookForAuthor(Guid authorId, Guid bookId, [FromBody] JsonPatchDocument<BookForUpdateDto> patchDoc)
-        {
-            if (patchDoc == null)
-            {
-                return BadRequest();
-            }
-
-            if (!_libraryRepository.AuthorExists(authorId))
-            {
-                return NotFound();
-            }
-
-            Book bookEntity = _libraryRepository.GetBookForAuthor(authorId, bookId);
-
-            if (bookEntity == null)
-            {
-                var bookDto = new BookForUpdateDto();
-                patchDoc.ApplyTo(bookDto);
-
-                var bookToAdd = Mapper.Map<Book>(bookDto);
-                bookToAdd.Id = bookId;
-
-                _libraryRepository.AddBookForAuthor(authorId, bookToAdd);
-
-                if (!_libraryRepository.Save())
-                {
-                    throw new Exception($"Upserting book {bookId} for author {authorId} failed when saving.");
-                }
-
-                var bookToReturn = Mapper.Map<BookDto>(bookToAdd);
-
-                return CreatedAtRoute("GetBookForAuthor", new { authorId = authorId, bookId = bookToReturn.Id }, bookToReturn);
-            }
-
-            var bookToPatch = Mapper.Map<BookForUpdateDto>(bookEntity);
-
-            patchDoc.ApplyTo(bookToPatch);
-
-            Mapper.Map(bookToPatch, bookEntity);
-
-            _libraryRepository.UpdateBookForAuthor(bookEntity);
-
-            if (!_libraryRepository.Save())
+            if (!c_libraryRepository.Save())
             {
                 throw new Exception($"Failed updating book {bookId} for author {authorId} failed when saving.");
             }

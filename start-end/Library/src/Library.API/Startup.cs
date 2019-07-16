@@ -15,7 +15,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,10 +65,10 @@ namespace Library.API
                                 if (exceptionHandlerFeature != null)
                                 {
                                     ILogger logger = loggerFactory.CreateLogger("Global exception logger");
-                                    logger.LogError((int) HttpStatusCode.InternalServerError, exceptionHandlerFeature.Error, exceptionHandlerFeature.Error.Message);
+                                    logger.LogError((int)HttpStatusCode.InternalServerError, exceptionHandlerFeature.Error, exceptionHandlerFeature.Error.Message);
                                 }
 
-                                context.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
+                                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                                 await context.Response.WriteAsync("An unexpected fault happened. Try again later.");
                             });
                     });
@@ -112,6 +115,15 @@ namespace Library.API
 
             // register the repository
             services.AddScoped<ILibraryRepository, LibraryRepository>();
+
+            services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
+
+            services.AddScoped<IUrlHelper, UrlHelper>(
+                implementationFactory =>
+                {
+                    ActionContext actionContext = implementationFactory.GetService<IActionContextAccessor>().ActionContext;
+                    return new UrlHelper(actionContext);
+                });
         }
     }
 }

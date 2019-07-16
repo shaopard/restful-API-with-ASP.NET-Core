@@ -11,6 +11,7 @@ using AutoMapper;
 
 using Library.API.Entities;
 using Library.API.Enums;
+using Library.API.Helpers;
 using Library.API.Models;
 using Library.API.Services;
 
@@ -22,36 +23,25 @@ namespace Library.API.Controllers
     [Route("api/authors")]
     public class AuthorsController : Controller
     {
-        private ILibraryRepository _libraryRepository;
+        private readonly ILibraryRepository c_libraryRepository;
 
-        public AuthorsController(ILibraryRepository libraryRepository)
+        private readonly IUrlHelper c_urlHelper;
+
+        public AuthorsController(ILibraryRepository libraryRepository, IUrlHelper urlHelper)
         {
-            _libraryRepository = libraryRepository;
+            c_libraryRepository = libraryRepository;
+            c_urlHelper = urlHelper;
         }
 
-        [HttpGet]
-        public IActionResult GetAuthors()
+        [HttpPost("{id}")]
+        public IActionResult BlockAuthorCreation(Guid id)
         {
-            IEnumerable<Author> authorEntities = _libraryRepository.GetAuthors();
-
-            var authorDtos = Mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
-
-            return Ok(authorDtos);
-        }
-
-        [HttpGet("{id}", Name = "GetAuthor")]
-        public IActionResult GetAuthors(Guid id)
-        {
-            Author authorEntity = _libraryRepository.GetAuthor(id);
-
-            if (authorEntity == null)
+            if (c_libraryRepository.AuthorExists(id))
             {
-                return NotFound();
+                return new StatusCodeResult(StatusCodes.Status409Conflict);
             }
 
-            var author = Mapper.Map<AuthorDto>(authorEntity);
-
-            return new JsonResult(author);
+            return NotFound();
         }
 
         [HttpPost]
@@ -64,42 +54,37 @@ namespace Library.API.Controllers
 
             var authorEntity = Mapper.Map<Author>(author);
 
-            _libraryRepository.AddAuthor(authorEntity);
+            c_libraryRepository.AddAuthor(authorEntity);
 
-            if (!_libraryRepository.Save())
+            if (!c_libraryRepository.Save())
             {
                 throw new Exception("Creating an author failed on save.");
             }
 
             var authorToReturn = Mapper.Map<AuthorDto>(authorEntity);
 
-            return CreatedAtRoute(RouteNames.GetAuthorRoute, new { id = authorToReturn.Id}, authorToReturn); //the Response also holds the URI for the newly created resource, so its ID as well.
-        }
-
-        [HttpPost("{id}")]
-        public IActionResult BlockAuthorCreation(Guid id)
-        {
-            if (_libraryRepository.AuthorExists(id))
-            {
-                return new StatusCodeResult(StatusCodes.Status409Conflict);
-            }
-
-            return NotFound();
+            return CreatedAtRoute(
+                RouteNames.GetAuthorRoute,
+                new
+                {
+                    id = authorToReturn.Id
+                },
+                authorToReturn); //the Response also holds the URI for the newly created resource, so its ID as well.
         }
 
         [HttpDelete("{id}")]
         public IActionResult DeleteAuthor(Guid id)
         {
-            Author authorEntity = _libraryRepository.GetAuthor(id);
+            Author authorEntity = c_libraryRepository.GetAuthor(id);
 
             if (authorEntity == null)
             {
                 return NotFound();
             }
 
-            _libraryRepository.DeleteAuthor(authorEntity);
+            c_libraryRepository.DeleteAuthor(authorEntity);
 
-            if (_libraryRepository.Save())
+            if (c_libraryRepository.Save())
             {
                 throw new Exception($"Deleting author {id} failed.");
             }
@@ -107,6 +92,82 @@ namespace Library.API.Controllers
             return NoContent();
         }
 
+        [HttpGet(Name = "GetAuthors")]
+        // public IActionResult GetAuthors([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public IActionResult GetAuthors(AuthorsResourceParameters authorsResourceParameters) // Frameworkul stie sa faca bindingul la query string parameters la proprietati din clasa asta.
+        {
+            PagedList<Author> authorEntities = c_libraryRepository.GetAuthors(authorsResourceParameters);
 
+            string previousPageLink = authorEntities.HasPrevious ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage) : null;
+
+            string nextPageLink = authorEntities.HasNext ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.NextPage) : null;
+
+            var paginationMetadata = new
+            {
+                totalCount = authorEntities.TotalCount,
+                pageSize = authorEntities.PageSize,
+                currentPage = authorEntities.CurrentPage,
+                totalPages = authorEntities.TotalPages,
+                previousPageLink = previousPageLink,
+                nextPageLink = nextPageLink
+            };
+            Response.Headers.Add("X-Pagination", Newtonsoft.Json.JsonConvert.SerializeObject(paginationMetadata));
+
+            var authorDtos = Mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
+            return Ok(authorDtos);
+        }
+
+        [HttpGet("{id}", Name = "GetAuthor")]
+        public IActionResult GetAuthors(Guid id)
+        {
+            Author authorEntity = c_libraryRepository.GetAuthor(id);
+
+            if (authorEntity == null)
+            {
+                return NotFound();
+            }
+
+            var author = Mapper.Map<AuthorDto>(authorEntity);
+
+            return new JsonResult(author);
+        }
+
+        private string CreateAuthorsResourceUri(AuthorsResourceParameters authorsResourceParameters, ResourceUriType resourceType)
+        {
+            switch (resourceType)
+            {
+                case ResourceUriType.PreviousPage:
+                    return c_urlHelper.Link(
+                        "GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber - 1,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+                case ResourceUriType.NextPage:
+                    return c_urlHelper.Link(
+                        "GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber + 1,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+
+                default:
+                    return c_urlHelper.Link(
+                        "GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+            }
+        }
     }
 }

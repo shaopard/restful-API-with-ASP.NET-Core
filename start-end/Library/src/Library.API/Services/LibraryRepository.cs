@@ -1,13 +1,21 @@
-﻿using Library.API.Entities;
+﻿// ------------------------------------------------------------------------------
+//     <copyright file="LibraryRepository.cs" company="BlackLine">
+//         Copyright (C) BlackLine. All rights reserved.
+//     </copyright>
+// ------------------------------------------------------------------------------
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
+using Library.API.Entities;
+using Library.API.Helpers;
 
 namespace Library.API.Services
 {
     public class LibraryRepository : ILibraryRepository
     {
-        private LibraryContext _context;
+        private readonly LibraryContext _context;
 
         public LibraryRepository(LibraryContext context)
         {
@@ -40,6 +48,7 @@ namespace Library.API.Services
                 {
                     book.Id = Guid.NewGuid();
                 }
+
                 author.Books.Add(book);
             }
         }
@@ -64,22 +73,34 @@ namespace Library.API.Services
             return _context.Authors.FirstOrDefault(a => a.Id == authorId);
         }
 
-        public IEnumerable<Author> GetAuthors()
+        public PagedList<Author> GetAuthors(AuthorsResourceParameters authorsResourceParameters)
         {
-            return _context.Authors.OrderBy(a => a.FirstName).ThenBy(a => a.LastName);
+            IQueryable<Author> collectionBeforePaging = _context.Authors.OrderBy(a => a.FirstName).ThenBy(a => a.LastName);
+
+            if (!string.IsNullOrWhiteSpace(authorsResourceParameters.Genre))
+            {
+                string genreForWhereClause = authorsResourceParameters.Genre.Trim().ToLowerInvariant();
+
+                collectionBeforePaging = collectionBeforePaging.Where(author => author.Genre.ToLowerInvariant() == genreForWhereClause);
+            }
+
+            if (!string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
+            {
+                string searchQueryForWhereClause = authorsResourceParameters.SearchQuery.Trim().ToLowerInvariant();
+
+                collectionBeforePaging = collectionBeforePaging.Where(
+                    author => author.Genre.ToLowerInvariant() == searchQueryForWhereClause || author.FirstName.ToLowerInvariant() == searchQueryForWhereClause ||
+                              author.LastName.ToLowerInvariant() == searchQueryForWhereClause);
+            }
+
+            PagedList<Author> authorsToReturn = PagedList<Author>.Create(collectionBeforePaging, authorsResourceParameters.PageNumber, authorsResourceParameters.PageSize);
+
+            return authorsToReturn;
         }
 
         public IEnumerable<Author> GetAuthors(IEnumerable<Guid> authorIds)
         {
-            return _context.Authors.Where(a => authorIds.Contains(a.Id))
-                .OrderBy(a => a.FirstName)
-                .OrderBy(a => a.LastName)
-                .ToList();
-        }
-
-        public void UpdateAuthor(Author author)
-        {
-            // no code in this implementation
+            return _context.Authors.Where(a => authorIds.Contains(a.Id)).OrderBy(a => a.FirstName).ThenBy(a => a.LastName).ToList();
         }
 
         public Book GetBookForAuthor(Guid authorId, Guid bookId)
@@ -89,18 +110,22 @@ namespace Library.API.Services
 
         public IEnumerable<Book> GetBooksForAuthor(Guid authorId)
         {
-            return _context.Books
-                        .Where(b => b.AuthorId == authorId).OrderBy(b => b.Title).ToList();
-        }
-
-        public void UpdateBookForAuthor(Book book)
-        {
-            // no code in this implementation
+            return _context.Books.Where(b => b.AuthorId == authorId).OrderBy(b => b.Title).ToList();
         }
 
         public bool Save()
         {
             return (_context.SaveChanges() >= 0);
+        }
+
+        public void UpdateAuthor(Author author)
+        {
+            // no code in this implementation
+        }
+
+        public void UpdateBookForAuthor(Book book)
+        {
+            // no code in this implementation
         }
     }
 }

@@ -6,10 +6,10 @@
 
 namespace Library.API.Enums
 {
-    public class RouteNames
+    public static class RouteNames
     {
-        public static string GetAuthorRoute = "GetAuthor";
+        public static readonly string GetAuthorRoute = "GetAuthor";
 
-        public static string GetBookForAuthor = "GetBookForAuthor";
+        public static readonly string GetBookForAuthor = "GetBookForAuthor";
     }
 }

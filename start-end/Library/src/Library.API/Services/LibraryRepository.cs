@@ -10,22 +10,26 @@ using System.Linq;
 
 using Library.API.Entities;
 using Library.API.Helpers;
+using Library.API.Models;
 
 namespace Library.API.Services
 {
     public class LibraryRepository : ILibraryRepository
     {
-        private readonly LibraryContext _context;
+        private readonly LibraryContext c_context;
 
-        public LibraryRepository(LibraryContext context)
+        private readonly IPropertyMappingService c_propertyMappingService;
+
+        public LibraryRepository(LibraryContext context, IPropertyMappingService propertyMappingService)
         {
-            _context = context;
+            c_context = context;
+            c_propertyMappingService = propertyMappingService;
         }
 
         public void AddAuthor(Author author)
         {
             author.Id = Guid.NewGuid();
-            _context.Authors.Add(author);
+            c_context.Authors.Add(author);
 
             // the repository fills the id (instead of using identity columns)
             if (author.Books.Any())
@@ -55,27 +59,29 @@ namespace Library.API.Services
 
         public bool AuthorExists(Guid authorId)
         {
-            return _context.Authors.Any(a => a.Id == authorId);
+            return c_context.Authors.Any(a => a.Id == authorId);
         }
 
         public void DeleteAuthor(Author author)
         {
-            _context.Authors.Remove(author);
+            c_context.Authors.Remove(author);
         }
 
         public void DeleteBook(Book book)
         {
-            _context.Books.Remove(book);
+            c_context.Books.Remove(book);
         }
 
         public Author GetAuthor(Guid authorId)
         {
-            return _context.Authors.FirstOrDefault(a => a.Id == authorId);
+            return c_context.Authors.FirstOrDefault(a => a.Id == authorId);
         }
 
         public PagedList<Author> GetAuthors(AuthorsResourceParameters authorsResourceParameters)
         {
-            IQueryable<Author> collectionBeforePaging = _context.Authors.OrderBy(a => a.FirstName).ThenBy(a => a.LastName);
+            //IQueryable<Author> collectionBeforePaging = _context.Authors.OrderBy(a => a.FirstName).ThenBy(a => a.LastName);
+
+            IQueryable<Author> collectionBeforePaging = c_context.Authors.ApplySort(authorsResourceParameters.OrderBy, c_propertyMappingService.GetPropertyMapping<AuthorDto, Author>());
 
             if (!string.IsNullOrWhiteSpace(authorsResourceParameters.Genre))
             {
@@ -100,22 +106,22 @@ namespace Library.API.Services
 
         public IEnumerable<Author> GetAuthors(IEnumerable<Guid> authorIds)
         {
-            return _context.Authors.Where(a => authorIds.Contains(a.Id)).OrderBy(a => a.FirstName).ThenBy(a => a.LastName).ToList();
+            return c_context.Authors.Where(a => authorIds.Contains(a.Id)).OrderBy(a => a.FirstName).ThenBy(a => a.LastName).ToList();
         }
 
         public Book GetBookForAuthor(Guid authorId, Guid bookId)
         {
-            return _context.Books.FirstOrDefault(b => b.AuthorId == authorId && b.Id == bookId);
+            return c_context.Books.FirstOrDefault(b => b.AuthorId == authorId && b.Id == bookId);
         }
 
         public IEnumerable<Book> GetBooksForAuthor(Guid authorId)
         {
-            return _context.Books.Where(b => b.AuthorId == authorId).OrderBy(b => b.Title).ToList();
+            return c_context.Books.Where(b => b.AuthorId == authorId).OrderBy(b => b.Title).ToList();
         }
 
         public bool Save()
         {
-            return (_context.SaveChanges() >= 0);
+            return (c_context.SaveChanges() >= 0);
         }
 
         public void UpdateAuthor(Author author)

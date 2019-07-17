@@ -23,14 +23,20 @@ namespace Library.API.Controllers
     [Route("api/authors")]
     public class AuthorsController : Controller
     {
-        private readonly ILibraryRepository c_libraryRepository;
+        private ILibraryRepository c_libraryRepository;
+        private IUrlHelper c_urlHelper;
+        private IPropertyMappingService c_propertyMappingService;
+        private ITypeHelperService c_typeHelperService;
 
-        private readonly IUrlHelper c_urlHelper;
-
-        public AuthorsController(ILibraryRepository libraryRepository, IUrlHelper urlHelper)
+        public AuthorsController(ILibraryRepository libraryRepository,
+                                 IUrlHelper urlHelper,
+                                 IPropertyMappingService propertyMappingService,
+                                 ITypeHelperService typeHelperService)
         {
             c_libraryRepository = libraryRepository;
             c_urlHelper = urlHelper;
+            c_propertyMappingService = propertyMappingService;
+            c_typeHelperService = typeHelperService;
         }
 
         [HttpPost("{id}")]
@@ -96,6 +102,18 @@ namespace Library.API.Controllers
         // public IActionResult GetAuthors([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         public IActionResult GetAuthors(AuthorsResourceParameters authorsResourceParameters) // Frameworkul stie sa faca bindingul la query string parameters la proprietati din clasa asta.
         {
+            // if (!c_propertyMappingService.ValidMappingExistsFor<AuthorDto, Author>
+            //         (authorsResourceParameters.OrderBy))
+            // {
+            //     return BadRequest();
+            // }
+
+            if (!c_typeHelperService.TypeHasProperties<AuthorDto>
+                    (authorsResourceParameters.Fields))
+            {
+                return BadRequest();
+            }
+
             PagedList<Author> authorEntities = c_libraryRepository.GetAuthors(authorsResourceParameters);
 
             string previousPageLink = authorEntities.HasPrevious ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage) : null;
@@ -114,12 +132,18 @@ namespace Library.API.Controllers
             Response.Headers.Add("X-Pagination", Newtonsoft.Json.JsonConvert.SerializeObject(paginationMetadata));
 
             var authorDtos = Mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
-            return Ok(authorDtos);
+            return Ok(authorDtos.ShapeData(authorsResourceParameters.Fields));
         }
 
         [HttpGet("{id}", Name = "GetAuthor")]
-        public IActionResult GetAuthors(Guid id)
+        public IActionResult GetAuthors(Guid id, [FromQuery] string fields)
         {
+            if (!c_typeHelperService.TypeHasProperties<AuthorDto>
+                    (fields))
+            {
+                return BadRequest();
+            }
+
             Author authorEntity = c_libraryRepository.GetAuthor(id);
 
             if (authorEntity == null)
@@ -128,8 +152,7 @@ namespace Library.API.Controllers
             }
 
             var author = Mapper.Map<AuthorDto>(authorEntity);
-
-            return new JsonResult(author);
+            return Ok(author.ShapeData(fields));
         }
 
         private string CreateAuthorsResourceUri(AuthorsResourceParameters authorsResourceParameters, ResourceUriType resourceType)
@@ -141,6 +164,8 @@ namespace Library.API.Controllers
                         "GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
+                            orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
                             pageNumber = authorsResourceParameters.PageNumber - 1,
@@ -151,6 +176,8 @@ namespace Library.API.Controllers
                         "GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
+                            orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
                             pageNumber = authorsResourceParameters.PageNumber + 1,
@@ -162,6 +189,8 @@ namespace Library.API.Controllers
                         "GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
+                            orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
                             pageNumber = authorsResourceParameters.PageNumber,

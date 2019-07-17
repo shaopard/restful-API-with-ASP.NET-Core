@@ -1,7 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿// ------------------------------------------------------------------------------
+//     <copyright file="DateTimeOffsetExtensions.cs" company="BlackLine">
+//         Copyright (C) BlackLine. All rights reserved.
+//     </copyright>
+// ------------------------------------------------------------------------------
+
+using System;
 
 namespace Library.API.Helpers
 {
@@ -9,7 +12,7 @@ namespace Library.API.Helpers
     {
         public static int GetCurrentAge(this DateTimeOffset dateTimeOffset)
         {
-            var currentDate = DateTime.UtcNow;
+            DateTime currentDate = DateTime.UtcNow;
             int age = currentDate.Year - dateTimeOffset.Year;
 
             if (currentDate < dateTimeOffset.AddYears(age))

@@ -95,8 +95,8 @@ namespace Library.API.Services
                 string searchQueryForWhereClause = authorsResourceParameters.SearchQuery.Trim().ToLowerInvariant();
 
                 collectionBeforePaging = collectionBeforePaging.Where(
-                    author => author.Genre.ToLowerInvariant() == searchQueryForWhereClause || author.FirstName.ToLowerInvariant() == searchQueryForWhereClause ||
-                              author.LastName.ToLowerInvariant() == searchQueryForWhereClause);
+                    author => author.Genre.ToLowerInvariant().Contains(searchQueryForWhereClause) || author.FirstName.ToLowerInvariant().Contains(searchQueryForWhereClause) ||
+                              author.LastName.ToLowerInvariant().Contains(searchQueryForWhereClause));
             }
 
             PagedList<Author> authorsToReturn = PagedList<Author>.Create(collectionBeforePaging, authorsResourceParameters.PageNumber, authorsResourceParameters.PageSize);

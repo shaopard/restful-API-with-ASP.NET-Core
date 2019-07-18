@@ -1,15 +1,15 @@
 ﻿// ------------------------------------------------------------------------------
-//     <copyright file="ResourceUriType.cs" company="BlackLine">
+//     <copyright file="LinkedResourceBaseDto.cs" company="BlackLine">
 //         Copyright (C) BlackLine. All rights reserved.
 //     </copyright>
 // ------------------------------------------------------------------------------
 
-namespace Library.API.Helpers
+using System.Collections.Generic;
+
+namespace Library.API.Models
 {
-    public enum ResourceUriType
+    public abstract class LinkedResourceBaseDto
     {
-        PreviousPage,
-        NextPage,
-        Current
+        public List<LinkDto> Links { get; set; } = new List<LinkDto>();
     }
 }

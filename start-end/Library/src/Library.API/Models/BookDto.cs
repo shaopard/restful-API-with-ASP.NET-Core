@@ -8,7 +8,7 @@ using System;
 
 namespace Library.API.Models
 {
-    public class BookDto
+    public class BookDto : LinkedResourceBaseDto
     {
         public string Description { get; set; }
 

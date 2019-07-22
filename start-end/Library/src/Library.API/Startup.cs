@@ -4,9 +4,11 @@
 //     </copyright>
 // ------------------------------------------------------------------------------
 
+using System.Linq;
 using System.Net;
 
 using Library.API.Entities;
+using Library.API.Enums;
 using Library.API.Helpers;
 using Library.API.Models;
 using Library.API.Services;
@@ -80,11 +82,12 @@ namespace Library.API
                 cfg =>
                 {
                     cfg.CreateMap<Author, AuthorDto>().ForMember(dest => dest.Name, opt => opt.MapFrom(src => $"{src.FirstName} {src.LastName}"))
-                       .ForMember(dest => dest.Age, opt => opt.MapFrom(src => src.DateOfBirth.GetCurrentAge()));
+                       .ForMember(dest => dest.Age, opt => opt.MapFrom(src => src.DateOfBirth.GetCurrentAge(src.DateOfDeath)));
 
                     cfg.CreateMap<Book, BookDto>();
 
                     cfg.CreateMap<AuthorForCreationDto, Author>();
+                    cfg.CreateMap<AuthorForCreationWithDateOfDeathDto, Author>();
 
                     cfg.CreateMap<BookForCreationDto, Book>();
 
@@ -106,7 +109,20 @@ namespace Library.API
                 {
                     setupAction.ReturnHttpNotAcceptable = true;
                     setupAction.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
-                    setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
+
+                    var xmlDataContractSerializerInputFormatter = new XmlDataContractSerializerInputFormatter();
+                    xmlDataContractSerializerInputFormatter.SupportedMediaTypes.Add(AcceptMediaTypes.MarvinHateoasWithAuthorFullPlusXml);
+                    setupAction.InputFormatters.Add(xmlDataContractSerializerInputFormatter);
+
+                    JsonOutputFormatter jsonOutputFormatter = setupAction.OutputFormatters.OfType<JsonOutputFormatter>().FirstOrDefault();
+
+                    if (jsonOutputFormatter != null)
+                    {
+                        jsonOutputFormatter.SupportedMediaTypes.Add(AcceptMediaTypes.MarvinHateoasPlusJson);
+                        jsonOutputFormatter.SupportedMediaTypes.Add(AcceptMediaTypes.MarvinHateoasWithAuthorFullPlusJson);
+                        jsonOutputFormatter.SupportedMediaTypes.Add(AcceptMediaTypes.MarvinHateoasWithDateOfDeathPlusJson);
+                    }
+
                 }).AddJsonOptions(
                 options =>
                 {

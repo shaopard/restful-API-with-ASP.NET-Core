@@ -97,6 +97,10 @@ namespace Library.API
 
             libraryContext.EnsureSeedDataForContext();
 
+            app.UseResponseCaching();
+
+            app.UseHttpCacheHeaders();
+
             app.UseMvc();
         }
 
@@ -106,7 +110,7 @@ namespace Library.API
         {
             services.AddMvc(
                 setupAction =>
-                {
+                { 
                     setupAction.ReturnHttpNotAcceptable = true;
                     setupAction.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
 
@@ -149,6 +153,18 @@ namespace Library.API
 
             services.AddTransient<IPropertyMappingService, PropertyMappingService>();
             services.AddTransient<ITypeHelperService, TypeHelperService>();
+
+            services.AddHttpCacheHeaders(
+                (expirationModelOptions) =>
+                {
+                    expirationModelOptions.MaxAge = 600;
+                },
+                (validationModelOptions) =>
+                {
+                    validationModelOptions.MustRevalidate = true;
+                });
+
+            services.AddResponseCaching();
         }
     }
 }

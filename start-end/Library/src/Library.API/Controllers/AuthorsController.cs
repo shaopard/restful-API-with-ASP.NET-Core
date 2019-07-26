@@ -167,6 +167,7 @@ namespace Library.API.Controllers
         }
 
         [HttpGet(Name = "GetAuthors")]
+        [HttpHead]
         public IActionResult
             GetAuthors(AuthorsResourceParameters authorsResourceParameters, [FromHeader(Name = "Accept")] string mediaType) // Frameworkul stie sa faca bindingul la query string parameters la proprietati din clasa asta.
         {
@@ -356,6 +357,16 @@ namespace Library.API.Controllers
             }
 
             return links;
+        }
+
+        [HttpOptions]
+        public IActionResult GetAuthorOptions()
+        {
+            const string c_acceptHeaderKey = "Allow";
+            const string c_supportedHttpMethods = "GET, OPTIONS, POST";
+
+            Response.Headers.Add(c_acceptHeaderKey, c_supportedHttpMethods);
+            return Ok();
         }
     }
 }

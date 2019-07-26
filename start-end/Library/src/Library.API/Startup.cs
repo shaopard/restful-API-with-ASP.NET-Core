@@ -4,8 +4,11 @@
 //     </copyright>
 // ------------------------------------------------------------------------------
 
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+
+using AspNetCoreRateLimit;
 
 using Library.API.Entities;
 using Library.API.Enums;
@@ -97,6 +100,9 @@ namespace Library.API
 
             libraryContext.EnsureSeedDataForContext();
 
+
+            //app.UseIpRateLimiting();
+
             app.UseResponseCaching();
 
             app.UseHttpCacheHeaders();
@@ -165,6 +171,25 @@ namespace Library.API
                 });
 
             services.AddResponseCaching();
+
+            services.AddMemoryCache();
+
+            services.Configure<IpRateLimitOptions>(
+                (options) =>
+                {
+                    options.GeneralRules = new List<RateLimitRule>
+                    {
+                        new RateLimitRule
+                        {
+                            Endpoint = "*",
+                            Limit = 3,
+                            Period = "5m"
+                        }
+                    };
+                });
+
+            services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+            services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
         }
     }
 }

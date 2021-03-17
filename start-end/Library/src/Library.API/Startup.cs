@@ -100,7 +100,6 @@ namespace Library.API
 
             libraryContext.EnsureSeedDataForContext();
 
-
             //app.UseIpRateLimiting();
 
             app.UseResponseCaching();
